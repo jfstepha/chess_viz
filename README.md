@@ -1,0 +1,13 @@
+Requirements:
+ - X11:
+    - linux: you probably already have it
+    - windows: wait... do you really need this? 
+ - python 3:
+    - linux: sudo apt-get install python3
+    - windows: 
+ - python-chess:   
+    - linux: sudo pip install python-chess
+    - windows: in a cmd 
+ - tkinter:   
+    - sudo apt-get install tkinter
+    - I installed for cywin, but for standalone???
