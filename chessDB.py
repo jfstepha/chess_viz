@@ -27,24 +27,29 @@ class GameList:
         return -1
         
     ################################################################################
-    def readFile(self, win=[], filename='game_counts.txt'):
+    def openFile(self, filename='game_counts_example.txt'):
         ''' reads a file and inserts it in the GameList '''
-        f = open(filename,'r')
+        self.f = open(filename,'r')
         filesize = os.stat( filename ).st_size
-        i=0
-        cur_bytes = 0
-        last_update = datetime.now()
-        for line in f:
-            cur_bytes += len( line ) + 1
-            self.fileParseLine( line )
-            c = datetime.now() - last_update
-            if c.microseconds > 20000:
-                percent = 100.0 * cur_bytes/filesize 
-                if win!=[]:
+        self.cur_bytes = 0
+        return filesize
 
-                    win.updateFileStatus( "Reading %s: read line %d (%0.2f%%)" % (filename, i, percent ), percent )
-                last_update = datetime.now()
-            i+=1
+    ################################################################################
+    def readSomeBytes(self ):
+        bytes_read_this_time = 0
+        start_time = datetime.now()
+        for line in self.f:
+            self.cur_bytes += len( line ) + 1
+            bytes_read_this_time += len( line ) + 1
+            self.fileParseLine( line )
+            c = datetime.now() - start_time
+            if c.microseconds > 10000:
+                    break
+        if bytes_read_this_time == 0:
+            self.f.close()
+            return -1
+        else:
+            return self.cur_bytes
             
     ################################################################################
     def fileParseLine(self, line):
@@ -87,18 +92,33 @@ class GameList:
         self.addMove( moves, 0, count)
 
     ################################################################################
-    def addSingleGameFromList(self, move_list, move_level, max_level):
+    def addSingleGameFromList(self, move_list, move_level, max_level, result="*"):
         ''' takes a single game (list of moves) and increments the stats in the gamelist '''
+        if move_list == []:
+            print ("empty move list")
+            return
+        if move_level >= len( move_list ):
+            print ("past the end of list")
+            return
         move = move_list[ move_level ]
         i = self.findMoveInGamelist( move )
         if i==-1:
             i = len( self.gamelist )
             self.gamelist.append( GameNode( move, 1, move_level))
+            self.gamelist[i].move_level = move_level
         else:
             self.gamelist[i].count += 1
+
+        if result == "0-1":
+            self.gamelist[i].black_wins += 1
+        elif result == "1-0":
+            self.gamelist[i].white_wins += 1
+        elif result == "1/2-1/2":
+            self.gamelist[i].draws += 1
             
         if len( move_list ) > move_level + 1 and move_level <= max_level:
-            self.gamelist[i].next_move.addSingleGameFromList( move_list, move_level+1, max_level)
+            self.gamelist[i].next_move.addSingleGameFromList( move_list, move_level+1, max_level, result )
+            self.gamelist[i].next_move.move_level = move_level+1
         
     ################################################################################
     def printList(self, level=0):
@@ -106,15 +126,29 @@ class GameList:
             move.print_node()
 
     ################################################################################
-    def writeList(self, filehandle, max_level, movestr):
-        for move in self.gamelist:
-            move.write_node( filehandle, max_level, movestr )
+    def writeList(self, filehandle, level, max_level, movestr):
+        if self.move_level > level:
+            return
+        if self.move_level == level:
+            for move in self.gamelist:
+                move.write_this_node( filehandle, movestr )
+            return
+        else:
+            for m in self.gamelist:
+                #move.write_sub_nodes( filehandle, level, movestr )
+                if movestr == "":
+                    mymovestr = m.move 
+                else:
+                    mymovestr = movestr + " " + m.move
+                m.next_move.writeList( filehandle, level, max_level, mymovestr )
+
 
             
     ################################################################################
     def writeToFile( self, filename, max_level=5 ):
         f = open( filename, 'w' )
-        self.writeList( f, max_level, "")
+        for level in range( max_level ):
+            self.writeList( f, level, max_level, "")
         f.close()
             
             
@@ -131,6 +165,9 @@ class GameNode:
         self.count = count
         self.level = level
         self.next_move = GameList()
+        self.black_wins = 0
+        self.white_wins = 0
+        self.draws = 0
 
     ################################################################################
     def __str__(self):
@@ -148,5 +185,14 @@ class GameNode:
             mymovestr = self.move
         else:
             mymovestr = movestr + " " + self.move
-        filehandle.write( "%s,%d\n" % ( mymovestr, self.count ) )
+        filehandle.write( "%s,%d,%d,%d,%d\n" % ( mymovestr, self.count,self.white_wins, self.black_wins, self.draws ) )
         self.next_move.writeList( filehandle, max_level, mymovestr )
+
+    ################################################################################
+    def write_this_node(self, filehandle, movestr):
+        if movestr == "":
+            mymovestr = self.move
+        else:
+            mymovestr = movestr + " " + self.move
+        filehandle.write( "%s,%d,%d,%d,%d\n" % ( mymovestr, self.count,self.white_wins, self.black_wins, self.draws ) )
+

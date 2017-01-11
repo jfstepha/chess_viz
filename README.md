@@ -11,3 +11,7 @@ Requirements:
  - tkinter:   
     - sudo apt-get install tkinter
     - I installed for cywin, but for standalone???
+Known bugs:
+- some .pgn files fail with something like "UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 405: character maps to <undefined>".
+    workaround:  open the file in vim and type: :%s/\%x81//g  , then save
+ 
