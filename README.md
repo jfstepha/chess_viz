@@ -28,10 +28,15 @@ Requirements:
  - tkinter:   
     - sudo apt-get install tkinter
     - I installed for cywin, but for standalone???
+ - python3-imaging
+ - python3-imaging-tk
+ - python3-setuptools
+ 
 Known bugs:
 - some .pgn files fail with something like "UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 405: character maps to <undefined>".
     workaround:  open the file in vim and type: :%s/\%x81//g  , then save
 
+Windows install might work with python download, you probably have to install python3-imaging
 cygwin install:
 - Select python3, python3-tkinter, python3-setuptools, git, python3-imaging, python3-imaging-tk, xinit
 - $ easy_install-3.4 python-chess
@@ -39,6 +44,12 @@ cygwin install:
 - $ cd chess_viz
 - $ startxwin &
 - $ export $DISPLAY=:0
-- $ copy a .csv file
+- $ python3 chess_viz.py
 
+- click on "ReadData"
+- click "Down" to display the 2nd move.
+- click a square to descend down to that move.
+- click "top" to return to the first move
+- click "SaveImage" to save a jpg image of the grid
+- click "ConvertPGN" to read in a .pgn file of chess games and save in the ChessViz database format
  
