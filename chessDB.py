@@ -1,3 +1,21 @@
+# chessDB.py
+# Copyright 2017 Jon Stephan
+
+#    This file is part of ChessViz.
+
+#    ChessViz is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+
+#    ChessViz is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+
+#    You should have received a copy of the GNU General Public License
+#    along with ChessViz.  If not, see <http://www.gnu.org/licenses/>.
+
 import os
 from datetime import datetime
 
@@ -119,6 +137,8 @@ class GameList:
         if len( move_list ) > move_level + 1 and move_level <= max_level:
             self.gamelist[i].next_move.addSingleGameFromList( move_list, move_level+1, max_level, result )
             self.gamelist[i].next_move.move_level = move_level+1
+        if self.gamelist[i].count > self.maxcount:
+            self.maxcount = self.gamelist[i].count
         
     ################################################################################
     def printList(self, level=0):

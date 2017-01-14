@@ -1,5 +1,23 @@
 #!/usr/bin/python3
 #chess_viz.py
+
+# chess_viz
+# Copyright 2017 Jon Stephan
+
+#    This file is part of ChessViz.
+
+#    ChessViz is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+
+#    ChessViz is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+
+#    You should have received a copy of the GNU General Public License
+#    along with ChessViz.  If not, see <http://www.gnu.org/licenses/>.
 '''
 chess_viz.py - visualizes the space of possible chess moves
 '''
@@ -8,6 +26,11 @@ from tkinter import *
 from tkinter import ttk
 from PIL import Image, ImageTk, ImageDraw
 import tkinter as tk
+import pickle
+import dialog
+import pgn_crunch
+
+#root = tk.Tk()
 
 from chessDB import *
 import chess
@@ -53,7 +76,54 @@ def padValid(g, move_prefix):
 
                 
             a.pop()
+            
+################################################################################
+################################################################################
+class ReadConvertDialog(dialog.Dialog):
+################################################################################
+################################################################################
+    def body(self, master, default_values):
+        Label(master, text="Input PGN filename:").grid(row=0)
+        Label(master, text="Output database filename:").grid(row=1)
+        Label(master, text="Plys").grid( row = 2)
+        
+        self.e1 = Entry(master, width=80)
+        self.e2 = Entry(master, width=80)
+        self.e3 = Entry(master, width=80)
+        
+        self.e1.grid(row=0, column=1)
+        self.e2.grid(row=1, column=1)
+        self.e3.grid(row=2, column=1)
+        
+        self.e1.insert(0, default_values[0] )
+        self.e2.insert(0, default_values[1] )
+        self.e3.insert(0, default_values[2] )
 
+        return self.e1
+    
+    def apply(self):
+        self.infilename = self.e1.get()
+        self.outfilename = self.e2.get()
+        self.max_levels = int( self.e3.get() )
+
+################################################################################
+################################################################################
+class ReadFilenameDialog(dialog.Dialog):
+################################################################################
+################################################################################
+    def body(self, master, default_values):
+        Label(master, text="Filename:").grid(row=0)
+        
+        self.e1 = Entry(master, width=80)
+        
+        self.e1.grid(row=0, column=1)
+        
+        self.e1.insert(0, default_values[0] )
+
+        return self.e1
+    
+    def apply(self):
+        self.filename = self.e1.get()
 
 ################################################################################
 ################################################################################
@@ -67,6 +137,7 @@ class ChessGrid:
         self.lr = lr
         self.ymoves = []
         self.ylabs = []
+        self.read_in_progress = False
         if draw_ylab:
             self.ylab_width = ylab_width
             self.xgap=10
@@ -144,7 +215,7 @@ class ChessGrid:
                     else:
                         fill_color = ( int( 255 - 255 * self.g.gamelist[i].next_move.gamelist[j].count / self.maxcount)  ,255,0) 
                 else:
-                    fill_color = ( 255,200,200)
+                    fill_color = ( 255,235,235)
 
                 if self.draw_frame:
                     outline_color = ( 220,220,220 ) 
@@ -194,6 +265,7 @@ class MainWindow (tk.Tk):
     def __init__(self, gamelist, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
         self.title( "Chess Viz" )
+        self.read_in_progress = False
         self.topgamelist = gamelist
         self.gamelist = gamelist
         self.move_prefix = ""
@@ -211,8 +283,8 @@ class MainWindow (tk.Tk):
         self.btnQuit = Button( self.frmButtons, text="QUIT", command=self.frame.quit)
         self.btnQuit.pack( side = LEFT )
         
-        #self.btnRead = Button( self.frmButtons, text="ReadData", command=self.handleRead)
-        #self.btnRead.pack( side = LEFT )
+        self.btnRead = Button( self.frmButtons, text="ReadData", command=self.handleRead)
+        self.btnRead.pack( side = LEFT )
 
         self.btnDraw = Button( self.frmButtons, text="DrawGrid", command=self.handleDraw)
         self.btnDraw.pack( side = LEFT )
@@ -223,9 +295,12 @@ class MainWindow (tk.Tk):
         self.btnDown = Button( self.frmButtons, text="DOWN", command=self.handleDown)
         self.btnDown.pack( side=LEFT )
 
-        self.btnSave = Button( self.frmButtons, text="SAVE", command=self.handleSave)
+        self.btnSave = Button( self.frmButtons, text="SaveImage", command=self.handleSave)
         self.btnSave.pack( side=LEFT )
         
+        self.btnConvertPGN = Button( self.frmButtons, text="ConvertPGN", command=self.handlePgn)
+        self.btnConvertPGN.pack( side=LEFT )
+
         ### status bar
         self.frmStatus = Frame( )
         self.frmStatus.pack( side=TOP )
@@ -256,7 +331,7 @@ class MainWindow (tk.Tk):
 
         self.frmChessGrid.bind("<Configure>", self.handleResize)
 
-        self.handleRead()
+        #self.handleRead()
         self.statusText.set("Done initializing" )
 
 
@@ -268,7 +343,7 @@ class MainWindow (tk.Tk):
         for t in self.lblTextCol:
             t.undraw()
         self.chessGrid.deleteAll()
-        
+
     ################################################################################
     def drawFirstMoveHeader(self, drawObj, g, textHeight ):
         xlabWidth = 40
@@ -327,11 +402,13 @@ class MainWindow (tk.Tk):
         self.topGridImg = ImageTk.PhotoImage( self.topGridImage )
         self.topGridLabel = Label( self.frmChessGrid, image=self.topGridImg)
         self.topGridLabel.bind( "<1>", self.handleGridClick)
-        self.topGridLabel.pack( fill=BOTH, expand=1 )
+        self.topGridLabel.pack( fill=BOTH )
 
     ################################################################################
     def handleRead(self):
-        self.max_bytes = self.gamelist.openFile( "gamecounts_scid_all6_10.txt")
+        d = ReadFilenameDialog( self, ["game_counts.txt"] )
+        filename = d.filename 
+        self.max_bytes = self.gamelist.openFile( filename )
         self.read_in_progress = True
         self.prog["value"] = 0
         self.prog["maximum"] = self.max_bytes
@@ -426,9 +503,44 @@ class MainWindow (tk.Tk):
 
     ################################################################################
     def handleSave(self):
-        self.topGridImage.save( "grid.jpg")
-            
-
+        d = ReadFilenameDialog( self, ["grid.jpg"] )
+        self.statusText.set( "Saving %s..." % d.filename )
+        self.topGridImage.save( d.filename )
+        self.statusText.set( "Done saving %s." % d.filename )
+    ################################################################################
+    def handlePgn(self):
+        self.handleTop()
+        d = ReadConvertDialog( self, ["scid_all6.pgn", "game_counts.txt", "5"])
+        p = pgn_crunch.PGNImporter( )
+        p.openPgn( d.infilename, d.max_levels)
+        self.prog["maximum"] = p.filesize
+        update_freq = 2
+        while p.more_games:
+            p.readAnotherGame()
+            #status_str = "read game %i (%d/%d=%0.2f%%) %s vs %s" % (p.i, p.read_so_far, p.filesize, p.percent_read, p.white, p.black)
+            #status_str = status_str + " " * (100 - len(status_str))
+            status_str = "read game %i (%d/%d=%0.2f%%) " % (p.i, p.read_so_far, p.filesize, p.percent_read)
+            self.statusText.set( status_str )
+            self.prog["maximum"] = p.filesize
+            self.prog["value"] = p.read_so_far
+            self.update()
+            if p.i % update_freq == 0:
+                self.gamelist = p.gamelist
+                self.topgamelist = p.gamelist
+                self.handleDraw()
+                self.handleDown()
+            if p.i > 10:
+                update_freq = 10
+            if p.i > 100:
+                update_freq = 100
+            if p.i > 500:
+                update_freq = 500
+        self.gamelist = p.gamelist
+        self.topgamelist = p.gamelist
+        self.statusText.set("writing %s out" % d.outfilename)
+        self.update()
+        self.gamelist.writeToFile( d.outfilename, d.max_levels )
+        self.statusText.set("done.")
         
     ################################################################################
 def print_game_list( gamelist) :
